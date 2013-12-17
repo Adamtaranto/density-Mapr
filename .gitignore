@@ -4,6 +4,11 @@
 # Example code in package build process
 *-Ex.R
 
+# Images #
+##########
+*.png
+*.pdf
+
 # Compiled source #
 ###################
 *.com
