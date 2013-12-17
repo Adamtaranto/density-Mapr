@@ -45,7 +45,7 @@ filled.contour3 <-
   if (!is.double(z)) 
     storage.mode(z) <- "double"
   .filled.contour(as.double(x), as.double(y), z, as.double(levels), 
-                          col = col))
+                          col = col)
   if (missing(plot.axes)) {
     if (axes) {
       title(main = "", xlab = "", ylab = "")
