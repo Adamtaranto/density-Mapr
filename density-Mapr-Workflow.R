@@ -4,7 +4,7 @@ getwd()
 ls()
 
 #############################################
-## 2.1	Load packages
+## 2.1	Load required R packages
 
 source("http://bioconductor.org/biocLite.R")
 biocLite()
@@ -20,8 +20,8 @@ require("ggplot2")
 #############################################
 ## 2.2	Required custom R functions
 
-source("filled.contour3.R")
-source("getFeat2b.R")
+source("Resources/filled.contour3.R")
+source("Resources/getFeat2b.R")
 
 
 #############################################
@@ -35,15 +35,15 @@ require("EBImage")
 #############################################
 ## 3.1 Calculate flanking intergenic regions (FIRs)
 
-gff <- import.gff("Mygtf.gtf", asRangedData=FALSE)
+gff <- import.gff("Sample_datasets/Mygtf.gtf", asRangedData=FALSE)
 
-gffgene<-getFeat2(x=gff, format="gtf", range_types=c("gene"))
+gffgene<-getFeat2b(x=gff, format="gtf", range_types=c("gene"))
 
 strand(gffgene)<-mcols(gffgene)$score
 
 mcols(gffgene)$score<-NULL
 
-gffintg<-getFeat2(x=gff, format="gtf", range_types=c("intergenic"))
+gffintg<-getFeat2b(x=gff, format="gtf", range_types=c("intergenic"))
 
 length_intg<-as.data.frame(cbind(seq(1:length(ranges(gffintg))), as.numeric(mcols(gffintg)$length)))
 
@@ -78,7 +78,7 @@ write.table(FIRdata,file="MyFIRs.csv", sep=",", row.names=FALSE)
 #############################################
 ## Alt. import own FIR data
 
-FIRdata<-read.csv(file="MyFIRs.csv",sep=",")
+FIRdata<-read.csv(file="Sample_datasets/MyFIRs.csv",sep=",")
 
 
 #############################################
@@ -134,10 +134,11 @@ write.table(BinLimits,file="MyBins.txt")
 #############################################
 ## Alt. import an external set of bin breaks:
 
-BinLimits<-as.numeric(unlist(read.table(file="MyBins.txt", header=TRUE, row.names=1)))
+BinLimits<-as.numeric(unlist(read.table(file="Sample_datasets/MyBins.txt", header=TRUE, row.names=1)))
 
 #############################################
-##3.4 Heatmap drawing
+## 3.4 Heatmap drawing
+## Start from here if importing both FIRdata and BinLimits
 
 x<-1:ncol(GenValMatrix)
 
@@ -180,7 +181,7 @@ filled.contour3(x, y, z=GenValMatrix,
 
 ## Save current graphic as pdf
 dev.off()
-quartz.save("my.pdf", type="pdf")
+quartz.save("myHeatmap.pdf", type="pdf")
 
 
 ## Save Heatmap as png, import as raster for use as ggplot background
@@ -189,15 +190,57 @@ img <- readPNG(paste(image_name, ".png", sep=""))
 g <- rasterGrob(img, interpolate=TRUE)
 
 ## Import data points
-rxlrData<-as.data.frame(read.csv('RXLR_FIRs.csv', header=TRUE))
+rxlrData<-as.data.frame(read.csv('Sample_datasets/RXLR_FIRs.csv', header=TRUE))
 
 ## Map data points onto base heatmap
-ggplot(data=rxlrData, aes(x=rxlrData$rxlr_five, y=rxlrData$rxlr_three, geom="blank")) + 
+
+
+#Loose 39 rxlr records: 38 with at least one FIR > 64843 (the value of the 40th bin in BinLimits), and 1 which is below the 2 value in BinLimits (20).
+gg<-ggplot(data=rxlrData, aes(x=rxlrData$rxlr_five, y=rxlrData$rxlr_three, geom="blank")) + 
        annotation_custom(g, xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf) + 
        coord_fixed(ratio=1) + 
-       geom_point(shape=21, fill="white", colour="black", size=4, alpha=0.7, na.rm=TRUE) + 
-       scale_y_log10(breaks = BinLimits[2:length(BinLimits)], limits = c(BinLimits[2], BinLimits[NumBins])) + 
-       scale_x_log10(breaks= BinLimits [2:length(BinLimits)], limits=c(BinLimits[2], BinLimits[NumBins])) + 
-       theme(axis.text.y=element_text(size = 10, vjust=0.5)) + theme(axis.text.x=element_text(size=10, vjust=0.5, angle=90)) + 
-       theme(axis.title.x = element_text(face="bold",size=12)) + xlab("five prime intergenic region") + 
-       theme(axis.title.y = element_text(face="bold",size=12)) + ylab("three prime intergenic region")
+       geom_point(shape=21, fill="white", colour="black", size=4, alpha=0.7, na.rm=FALSE) + 
+       scale_y_log10(breaks= BinLimits[2:length(BinLimits)], limits= c(BinLimits[2], BinLimits[NumBins])) + 
+       scale_x_log10(breaks= BinLimits[2:length(BinLimits)], limits= c(BinLimits[2], BinLimits[NumBins])) + 
+       theme(axis.text.y=element_text(size =8, vjust=0.5)) + 
+       theme(axis.text.x=element_text(size=8, vjust=0.5, angle=90)) + 
+       theme(axis.title.x = element_text(face="bold",size=12)) +
+       xlab("five prime intergenic region") + 
+       theme(axis.title.y = element_text(face="bold",size=12)) +
+       ylab("three prime intergenic region")
+
+#Correct NumBins to equal actual number of bins in BinLimits
+NumBins<-as.numeric(c(length(BinLimits)))
+
+#Loose 1 record, (190: 39629,12)
+gg<-ggplot(data=rxlrData, aes(x=rxlrData$rxlr_five, y=rxlrData$rxlr_three, geom="blank")) + 
+       annotation_custom(g, xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf) + 
+       coord_fixed(ratio=1) + 
+       geom_point(shape=21, fill="white", colour="black", size=4, alpha=0.7, na.rm=FALSE) + 
+       scale_y_log10(breaks= BinLimits[2:length(BinLimits)], limits= c(BinLimits[2], BinLimits[NumBins])) + 
+       scale_x_log10(breaks= BinLimits[2:length(BinLimits)], limits= c(BinLimits[2], BinLimits[NumBins])) + 
+       theme(axis.text.y=element_text(size =8, vjust=0.5)) + 
+       theme(axis.text.x=element_text(size=8, vjust=0.5, angle=90)) + 
+       theme(axis.title.x = element_text(face="bold",size=12)) +
+       xlab("five prime intergenic region") + 
+       theme(axis.title.y = element_text(face="bold",size=12)) +
+       ylab("three prime intergenic region")
+
+#Loose no data points. But axes are messed up, and heatmap is incorrectly scaled.
+gg<-ggplot(data=rxlrData, aes(x=rxlrData$rxlr_five, y=rxlrData$rxlr_three, geom="blank")) + 
+       annotation_custom(g, xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf) + 
+       coord_fixed(ratio=1) + 
+       geom_point(shape=21, fill="white", colour="black", size=4, alpha=0.7, na.rm=FALSE) + 
+       scale_y_log10(breaks= BinLimits[2:length(BinLimits)], limits= c(BinLimits[1], BinLimits[NumBins])) + 
+       scale_x_log10(breaks= BinLimits[2:length(BinLimits)], limits= c(BinLimits[1], BinLimits[NumBins])) + 
+       theme(axis.text.y=element_text(size =8, vjust=0.5)) + 
+       theme(axis.text.x=element_text(size=8, vjust=0.5, angle=90)) + 
+       theme(axis.title.x = element_text(face="bold",size=12)) +
+       xlab("five prime intergenic region") + 
+       theme(axis.title.y = element_text(face="bold",size=12)) +
+       ylab("three prime intergenic region")
+
+gg
+
+quartz.save("myHeatmap_withPoints.pdf", type="pdf")
+
