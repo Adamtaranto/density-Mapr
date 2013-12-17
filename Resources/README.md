@@ -4,8 +4,6 @@ density-Mapr
 Original sample data and dependencies can be found at: http://figshare.com/authors/Sylvain_Raffaele/415674
 
 
-
-
 getFeat2b R function
 -------------------------
 
