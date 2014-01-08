@@ -78,7 +78,7 @@ write.table(FIRdata,file="MyFIRs.csv", sep=",", row.names=FALSE)
 #############################################
 ## Alt. import own FIR data
 
-FIRdata<-read.csv(file="Sample_datasets/MyFIRs.csv",sep=",")
+FIRdata<-read.csv(file="Resources/MyFIRs.csv",sep=",")
 
 
 #############################################
@@ -114,6 +114,13 @@ pred=predict(fit, x)
 
 BinLimits=c(1, round(exp(pred),0), max(FIR2Bin))
 
+## Export current BinLimits to file
+write.table(BinLimits,file="MyBins.txt")
+
+#############################################
+## Alt. import an external set of bin breaks:
+
+BinLimits<-as.numeric(unlist(read.table(file="Resources/MyBins.txt", header=TRUE, row.names=1)))
 
 #############################################
 ## 3.3 Data binning
@@ -126,15 +133,6 @@ FIRdata<-cbind(FIRdata, xbin, ybin,
        genevalue=rep(1, length(FIRdata$fiveprime)))
 
 GenValMatrix<-with(FIRdata, tapply(genevalue, list(xbin, ybin), sum))
-
-## Export current BinLimits to file
-write.table(BinLimits,file="MyBins.txt")
-
-
-#############################################
-## Alt. import an external set of bin breaks:
-
-BinLimits<-as.numeric(unlist(read.table(file="Sample_datasets/MyBins.txt", header=TRUE, row.names=1)))
 
 #############################################
 ## 3.4 Heatmap drawing
@@ -179,8 +177,9 @@ filled.contour3(x, y, z=GenValMatrix,
        frame.plot = FALSE, 
        axes = FALSE)
 
-## Save current graphic as pdf
 dev.off()
+
+## Save current graphic as pdf
 quartz.save("myHeatmap.pdf", type="pdf")
 
 
