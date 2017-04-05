@@ -5,7 +5,7 @@
 ##	or GTF files. Results can be combined with existing ranges. Input
 ##	and output objects are of class 'GRanges'.
 
-getFeat2 <- function(x, gff, format="gff", range_types=c("intergenic", "gene_red", "intron", "gene", "exon")) {
+getFeat2b <- function(x, gff, format="gff", group_col="group",range_types=c("intergenic", "gene_red", "intron", "gene", "exon")) {
 	require(GenomicRanges)
 	## Input checks
 	if(!missing(gff)) { x <- gff } # For backwards compatibility (if gff instead of x is used as function argument)
@@ -17,6 +17,11 @@ getFeat2 <- function(x, gff, format="gff", range_types=c("intergenic", "gene_red
 		seqlengths(x) <- as.numeric(tapply(end(x), as.character(seqnames(x)), max))
 	}
 	
+	# If no metadata 'group' in grange object, use ID
+	if(!"group" %in% colnames(mcols(x))) {paste("Default 'group' column not found, using: ",group_col)}
+	if(!group_col %in% colnames(mcols(x))) {stop("Specified group_col does not exist in granges object.")}
+	if(!identical(group_col,"group")) { elementMetadata(x)[,"group"] <- elementMetadata(x)[,group_col]}
+
 	## Exon ranges
 	elementMetadata(x) <- elementMetadata(x)[,c("type", "group", "score")]
 	elementMetadata(x)[,"score"]<- strand(x)
@@ -82,7 +87,7 @@ getFeat2 <- function(x, gff, format="gff", range_types=c("intergenic", "gene_red
 	## Reduced gene ranges
 	if(any(range_types %in% c("gene_red", "intergenic"))) {
 		## Obtain gene ranges and collapse overlapping genes with reduce
-		gene_red <- reduce(gene)
+		gene_red <- reduce(gene, min.gapwidth=0)
 		ols <- as.matrix(findOverlaps(gene, gene_red))
 		red_labels <- tapply(as.character(as.data.frame(elementMetadata(gene)["group"])[,1]), ols[,2], paste, collapse="_")
 		elementMetadata(gene_red) <- data.frame(type="gene_red", group=red_labels)
@@ -91,19 +96,19 @@ getFeat2 <- function(x, gff, format="gff", range_types=c("intergenic", "gene_red
 
 	## Intergenic ranges
 	if(any(range_types %in% "intergenic")) {
-		tmp_gene_red <- gene_red
+		tmp_gene_red <- gene_red; start(tmp_gene_red) <- start(tmp_gene_red)+1; end(tmp_gene_red) <- end(tmp_gene_red)-1
 		seqlengths(tmp_gene_red) <- rep(NA, length(seqlengths(tmp_gene_red)))
 		intergenic <- gaps(tmp_gene_red)
 		intergenic <- intergenic[start(intergenic) != 1]
+		start(intergenic) <- start(intergenic)+1; end(intergenic) <- end(intergenic)-1
 		tmp <- intergenic; start(tmp) <- start(tmp)-1; end(tmp) <- end(tmp)+1
 		ols <- as.matrix(findOverlaps(gene_red, tmp))
 		inter_labels <- tapply(as.character(as.data.frame(elementMetadata(gene_red)["group"])[ols[,1],1]), ols[,2], paste, collapse="__")
 		elementMetadata(intergenic) <- data.frame(type="intergenic", source=NA, phase=NA, group=inter_labels)
 		metcol <- intersect(intersect(names(elementMetadata(firstinter)), names(elementMetadata(gene_red))), names(elementMetadata(lastinter)))
-		intergenic <- c(firstinter[, metcol], intergenic[, metcol], lastinter[, metcol])
 		intergenic <- intergenic[order(as.vector(seqnames(intergenic)), start(intergenic))]
 		elementMetadata(intergenic)["type"] <- "intergenic"
-		elementMetadata(intergenic)["length"]<- as.numeric(2 + end(intergenic) - start(intergenic))
+		elementMetadata(intergenic)["length"]<- as.numeric(1 + end(intergenic) - start(intergenic))
 	}
 	
 	## Intron Ranges

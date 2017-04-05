@@ -4,6 +4,10 @@
 # Example code in package build process
 *-Ex.R
 
+# Drafts #
+##########
+DRAFT_*
+
 # Images #
 ##########
 *.png
@@ -22,6 +26,7 @@
 ##############
 bin/
 data/
+viResources/
 
 # Packages #
 ############

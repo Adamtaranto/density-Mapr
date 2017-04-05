@@ -4,46 +4,55 @@ getwd()
 ls()
 
 #############################################
-## 2.1	Load required R packages
+## 1.0 Install required R packages
 
+## Bioconductor
 source("http://bioconductor.org/biocLite.R")
-biocLite()
+biocLite("GenomicRanges")
+biocLite("rtracklayer")
+biocLite("Rsamtools")
 
-require("GenomicRanges")
-require("rtracklayer")
-require("Rsamtools")
-require("png")
-require("gridExtra")
-require("ggplot2")
+## CRAN packages
+install.packages("png")
+install.packages("gridExtra")
+install.packages("ggplot2")
 
+## Optional
+install.packages("fields")
+install.packages("rgl")
+install.packages("EBImage")
 
-#############################################
-## 2.2	Required custom R functions
+## Other
+#require(devtools)
+#install_version("ggplot2", version = "0.9.1", repos = "http://cran.us.r-project.org")
 
-source("Resources/filled.contour3.R")
-source("Resources/getFeat2b.R")
-
-
-#############################################
-## 2.3 Optional R packages
-
-require("fields")
-require("rgl")
-require("EBImage")
-
+## 1.1 Import packages
+library("GenomicRanges","rtracklayer","Rsamtools",
+       "png","gridExtra","ggplot2")
 
 #############################################
-## 3.1 Calculate flanking intergenic regions (FIRs)
+## 1.2 Source custom R functions
+source("src/filled.contour3.R")
+source("src/getFeat2b.R")
 
-gff <- import.gff("Sample_datasets/Mygtf.gtf", asRangedData=FALSE)
+#############################################
+## 1.3 Optional R packages
 
-gffgene<-getFeat2b(x=gff, format="gtf", range_types=c("gene"))
+library("fields","rgl","EBImage")
 
-strand(gffgene)<-mcols(gffgene)$score
+#############################################
+## 2.0 Calculate flanking intergenic regions (FIRs)
+
+x <- import.gff("Sample_datasets/Mygtf.gtf")
+
+## Set "group_col" to gff metadata field with unique gene identifiers.
+gffgene <- getFeat2b(x=x, format="GFF", group_col="gene_id", range_types=c("gene"))
+
+strand(gffgene) <- mcols(gffgene)$score
 
 mcols(gffgene)$score<-NULL
 
-gffintg<-getFeat2b(x=gff, format="gtf", range_types=c("intergenic"))
+gffintg<-getFeat2b(x=x, format="GFF",group_col="gene_id", range_types=c("intergenic"))
 
 length_intg<-as.data.frame(cbind(seq(1:length(ranges(gffintg))), as.numeric(mcols(gffintg)$length)))
 
@@ -74,15 +83,8 @@ colnames(FIRdata)<-c("geneid", "strand", "fiveprime", "threeprime")
 ## Export current FIR data
 write.table(FIRdata,file="MyFIRs.csv", sep=",", row.names=FALSE)
 
-
 #############################################
-## Alt. import own FIR data
-
-FIRdata<-read.csv(file="Resources/MyFIRs.csv",sep=",")
-
-
-#############################################
-## 3.2  Bin breaks setup
+## 3.0  Bin breaks setup
 
 NumBins=40
 
@@ -91,7 +93,6 @@ if ((max(FIRdata$fiveprime, na.rm=TRUE)>max(FIRdata$threeprime, na.rm=TRUE)) == 
 } else {
        FIR2Bin<-FIRdata$threeprime
        }
-
 
 FIR2Bin=FIR2Bin[which(FIR2Bin!=0)]
 
@@ -118,15 +119,9 @@ BinLimits=c(1, round(exp(pred),0), max(FIR2Bin))
 write.table(BinLimits,file="MyBins.txt")
 
 #############################################
-## Alt. import an external set of bin breaks:
-
-BinLimits<-as.numeric(unlist(read.table(file="Resources/MyBins.txt", header=TRUE, row.names=1)))
-
-#############################################
-## 3.3 Data binning
+## 3.1 Data binning
 
 xbin=cut(FIRdata$fiveprime, breaks= c(BinLimits))
-
 ybin=cut(FIRdata$threeprime, breaks= c(BinLimits))
 
 FIRdata<-cbind(FIRdata, xbin, ybin, 
@@ -135,25 +130,48 @@ FIRdata<-cbind(FIRdata, xbin, ybin,
 GenValMatrix<-with(FIRdata, tapply(genevalue, list(xbin, ybin), sum))
 
 #############################################
-## 3.4 Heatmap drawing
+## Import pre-calculated bins and FIRS
+#############################################
+
+#4.0
+## Alt. import an external set of bin breaks:
+BinLimits<-as.numeric(unlist(read.table(file="Resources/MyBins.txt", header=TRUE, row.names=1)))
+
+## Alt. import own FIR data
+FIRdata<-read.csv(file="Resources/MyFIRs.csv",sep=",")
+xbin=cut(FIRdata$fiveprime, breaks= c(BinLimits))
+ybin=cut(FIRdata$threeprime, breaks= c(BinLimits))
+FIRdata<-cbind(FIRdata, xbin, ybin, 
+       genevalue=rep(1, length(FIRdata$fiveprime)))
+GenValMatrix<-with(FIRdata, tapply(genevalue, list(xbin, ybin), sum))
+
+## 4.1 Heatmap drawing
 ## Start from here if importing both FIRdata and BinLimits
 
 x<-1:ncol(GenValMatrix)
-
 y<-1:nrow(GenValMatrix)
 
 zlim = range(as.numeric(unlist(GenValMatrix)), finite=TRUE)
 
-mypalette<-colorRampPalette(c( "white", "darkblue", "forestgreen", "goldenrod1", "orangered", "red3", "darkred"), space="rgb")
+mypalette <- colorRampPalette(c( "white", 
+                                   "darkblue", 
+                                   "forestgreen", 
+                                   "goldenrod1", 
+                                   "orangered", 
+                                   "red3", 
+                                   "darkred"), 
+                                   space="rgb")
 
 mycol=mypalette(2*max(GenValMatrix, na.rm=TRUE))
 
-mylabels<-paste(BinLimits[1:length(BinLimits)-1], BinLimits[2:length(BinLimits)], sep = " - ", collapse = NULL)
+mylabels <- paste(BinLimits[1:length(BinLimits)-1], 
+              BinLimits[2:length(BinLimits)], 
+              sep = " - ", collapse = NULL)
 
 filled.contour(x, y, z=GenValMatrix, 
        plot.title = title(main ="Phytophthora infestans genome", 
-              xlab = "five prime intergenic regions", 
-              ylab = "three prime intergenic regions", 
+              xlab = "Five prime intergenic regions", 
+              ylab = "Three prime intergenic regions", 
               cex.main=0.8, cex.lab=0.5), 
        key.title = title(main ="Number of genes", cex.main=0.5, line=1), 
        col=mycol, 
@@ -164,11 +182,10 @@ filled.contour(x, y, z=GenValMatrix,
 
 
 #############################################
-## 3.5 Overlaying a scatter plot over a genome architecture heatmap
-image_name<-paste(as.character(format(Sys.time(), "%Y%m%d%H%M%S")), "_graph", sep="")
+## 4.2 Overlaying a scatter plot over a genome architecture heatmap
+image_name <- paste(as.character(format(Sys.time(), "%Y%m%d%H%M%S")), "_graph", sep="")
 
 png(filename = paste(image_name, ".png", sep=""))
-
 par(mar=c(0,0,0,0))
 
 filled.contour3(x, y, z=GenValMatrix, 
@@ -182,64 +199,40 @@ dev.off()
 ## Save current graphic as pdf
 quartz.save("myHeatmap.pdf", type="pdf")
 
-
 ## Save Heatmap as png, import as raster for use as ggplot background
 img <- readPNG(paste(image_name, ".png", sep=""))
-
 g <- rasterGrob(img, interpolate=TRUE)
 
 ## Import data points
+
+## Extract genes of interest from gene2gene FIR list
+## Note: Reduce all values in first bin to zero, reduce all values above 2nd-to-last bin limit to last-bin minus 100 (protect from jitter)
+## Headers: rxlr_five,rxlr_three,family
 rxlrData<-as.data.frame(read.csv('Sample_datasets/RXLR_FIRs.csv', header=TRUE))
 
 ## Map data points onto base heatmap
-
-
-#Loose 39 rxlr records: 38 with at least one FIR > 64843 (the value of the 40th bin in BinLimits), and 1 which is below the 2 value in BinLimits (20).
-gg<-ggplot(data=rxlrData, aes(x=rxlrData$rxlr_five, y=rxlrData$rxlr_three, geom="blank")) + 
-       annotation_custom(g, xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf) + 
-       coord_fixed(ratio=1) + 
-       geom_point(shape=21, fill="white", colour="black", size=4, alpha=0.7, na.rm=FALSE) + 
-       scale_y_log10(breaks= BinLimits[2:length(BinLimits)], limits= c(BinLimits[2], BinLimits[NumBins])) + 
-       scale_x_log10(breaks= BinLimits[2:length(BinLimits)], limits= c(BinLimits[2], BinLimits[NumBins])) + 
-       theme(axis.text.y=element_text(size =8, vjust=0.5)) + 
-       theme(axis.text.x=element_text(size=8, vjust=0.5, angle=90)) + 
-       theme(axis.title.x = element_text(face="bold",size=12)) +
-       xlab("five prime intergenic region") + 
-       theme(axis.title.y = element_text(face="bold",size=12)) +
-       ylab("three prime intergenic region")
-
-#Correct NumBins to equal actual number of bins in BinLimits
+## Correct NumBins to equal actual number of bins in BinLimits
 NumBins<-as.numeric(c(length(BinLimits)))
 
-#Loose 1 record, (190: 39629,12)
-gg<-ggplot(data=rxlrData, aes(x=rxlrData$rxlr_five, y=rxlrData$rxlr_three, geom="blank")) + 
+gg <-(ggplot(data=FIRdata, aes(x=rxlrData$rxlr_five, y=rxlrData$rxlr_three, geom="blank",fill=factor(family))) + 
        annotation_custom(g, xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf) + 
        coord_fixed(ratio=1) + 
-       geom_point(shape=21, fill="white", colour="black", size=4, alpha=0.7, na.rm=FALSE) + 
-       scale_y_log10(breaks= BinLimits[2:length(BinLimits)], limits= c(BinLimits[2], BinLimits[NumBins])) + 
-       scale_x_log10(breaks= BinLimits[2:length(BinLimits)], limits= c(BinLimits[2], BinLimits[NumBins])) + 
-       theme(axis.text.y=element_text(size =8, vjust=0.5)) + 
-       theme(axis.text.x=element_text(size=8, vjust=0.5, angle=90)) + 
-       theme(axis.title.x = element_text(face="bold",size=12)) +
-       xlab("five prime intergenic region") + 
-       theme(axis.title.y = element_text(face="bold",size=12)) +
-       ylab("three prime intergenic region")
-
-#Loose no data points. But axes are messed up, and heatmap is incorrectly scaled.
-gg<-ggplot(data=rxlrData, aes(x=rxlrData$rxlr_five, y=rxlrData$rxlr_three, geom="blank")) + 
-       annotation_custom(g, xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf) + 
-       coord_fixed(ratio=1) + 
-       geom_point(shape=21, fill="white", colour="black", size=4, alpha=0.7, na.rm=FALSE) + 
-       scale_y_log10(breaks= BinLimits[2:length(BinLimits)], limits= c(BinLimits[1], BinLimits[NumBins])) + 
-       scale_x_log10(breaks= BinLimits[2:length(BinLimits)], limits= c(BinLimits[1], BinLimits[NumBins])) + 
-       theme(axis.text.y=element_text(size =8, vjust=0.5)) + 
-       theme(axis.text.x=element_text(size=8, vjust=0.5, angle=90)) + 
-       theme(axis.title.x = element_text(face="bold",size=12)) +
-       xlab("five prime intergenic region") + 
-       theme(axis.title.y = element_text(face="bold",size=12)) +
-       ylab("three prime intergenic region")
-
-gg
-
+       labs(fill = "RXLR Genes") +
+       geom_point(shape=21, colour="black", size=5, alpha=0.9, na.rm=FALSE, position=position_jitter(width=0.01, height=0.01)) +
+       scale_fill_manual(values = c('rxlr'="red")) +
+       scale_y_log10(breaks=BinLimits[2:length(BinLimits)], limits=c(BinLimits[2], BinLimits[NumBins-1])) + 
+       scale_x_log10(breaks=BinLimits[2:length(BinLimits)], limits=c(BinLimits[2], BinLimits[NumBins-1])) + 
+       ggtitle("RXLR Gene Intergenic Flanking Distance \n vs Global Intergenic Distance ") +
+       xlab("Five prime intergenic distance (nt)") + 
+       ylab("Three prime intergenic distance (nt)") +
+       theme( plot.title = element_text(size=14, face="bold.italic",hjust = 0.5),
+              axis.text.y  = element_text(size =8, vjust=0.5),
+              axis.text.x  = element_text(size=8, vjust=0.5, angle=90),
+              axis.title.x = element_text(face="bold",size=12),
+              axis.title.y = element_text(face="bold",size=12))
+              )
+       
+# Run
+gg 
+# Save
 quartz.save("myHeatmap_withPoints.pdf", type="pdf")
-
